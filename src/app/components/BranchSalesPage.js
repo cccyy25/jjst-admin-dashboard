@@ -122,6 +122,15 @@ export default function BranchSalesPage({ branchSlug, branchName, isAdmin = fals
         return getCurrentMonthBounds();
     }, [isAdmin]);
 
+    // Clamp date to bounds (for mobile browsers that don't respect min/max)
+    const clampDate = (dateStr) => {
+        if (isAdmin || !dateStr) return dateStr;
+        const { minDate, maxDate } = dateBounds;
+        if (minDate && dateStr < minDate) return minDate;
+        if (maxDate && dateStr > maxDate) return maxDate;
+        return dateStr;
+    };
+
     const handleLogout = async () => {
         setLoggingOut(true);
         await logout();
@@ -190,6 +199,16 @@ export default function BranchSalesPage({ branchSlug, branchName, isAdmin = fals
         fetchStaff();
     }, []);
 
+    // Ensure dateFilter is within bounds on mount and when bounds change (mobile fix)
+    useEffect(() => {
+        if (!isAdmin) {
+            const clamped = clampDate(dateFilter);
+            if (clamped !== dateFilter) {
+                setDateFilter(clamped);
+            }
+        }
+    }, [dateBounds]);
+
     useEffect(() => {
         fetchSales();
     }, [dateFilter]);
@@ -245,8 +264,18 @@ export default function BranchSalesPage({ branchSlug, branchName, isAdmin = fals
     };
 
     const handleSubmit = async (e) => {
-        setCreating(true);
         e.preventDefault();
+
+        // Validate date is within bounds (extra safety for mobile)
+        if (!isAdmin) {
+            const { minDate, maxDate } = dateBounds;
+            if ((minDate && formData.date < minDate) || (maxDate && formData.date > maxDate)) {
+                alert('Date must be within current month');
+                return;
+            }
+        }
+
+        setCreating(true);
         // Parse surcharge: if it's a string like "Hair Cut-35", extract the number
         let surchargeValue = formData.surcharge;
         if (typeof surchargeValue === 'string' && surchargeValue.includes('-')) {
@@ -360,7 +389,7 @@ export default function BranchSalesPage({ branchSlug, branchName, isAdmin = fals
                             <input
                                 type="date"
                                 value={dateFilter}
-                                onChange={(e) => setDateFilter(e.target.value)}
+                                onChange={(e) => setDateFilter(clampDate(e.target.value))}
                                 min={dateBounds.minDate || undefined}
                                 max={dateBounds.maxDate || undefined}
                                 className="bg-transparent text-white border-none outline-none cursor-pointer"
@@ -568,7 +597,7 @@ export default function BranchSalesPage({ branchSlug, branchName, isAdmin = fals
                                 <input
                                     type="date"
                                     value={formData.date}
-                                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                                    onChange={(e) => setFormData({ ...formData, date: clampDate(e.target.value) })}
                                     min={dateBounds.minDate || undefined}
                                     max={dateBounds.maxDate || undefined}
                                     className="w-full px-3 sm:px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-blue-500 transition-colors"
