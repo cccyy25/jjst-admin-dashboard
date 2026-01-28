@@ -2,7 +2,7 @@
 
 import { cookies } from 'next/headers';
 
-const SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+const SESSION_DURATION = 5000 * 24 * 60 * 60 * 1000;
 
 // Staff accounts configuration
 const STAFF_ACCOUNTS = [
@@ -14,6 +14,18 @@ const STAFF_ACCOUNTS = [
     { prefix: 'STAFF_PC', branch: 'puchong' },
 ];
 
+// Timing-safe string comparison to prevent timing attacks
+function secureCompare(a, b) {
+    if (typeof a !== 'string' || typeof b !== 'string') return false;
+    if (a.length !== b.length) return false;
+
+    let result = 0;
+    for (let i = 0; i < a.length; i++) {
+        result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    }
+    return result === 0;
+}
+
 export async function login(username, password) {
     const superadminUsername = process.env.SUPERADMIN_USERNAME;
     const superadminPassword = process.env.SUPERADMIN_PASSWORD;
@@ -22,15 +34,17 @@ export async function login(username, password) {
     let branch = null;
 
     // Check superadmin first
-    if (username === superadminUsername && password === superadminPassword) {
+    if (username === superadminUsername && secureCompare(password, superadminPassword)) {
         role = 'superadmin';
-    } else {
-        // Check each staff account
+    }
+
+    // If not superadmin, check staff accounts
+    if (!role) {
         for (const account of STAFF_ACCOUNTS) {
             const staffUsername = process.env[`${account.prefix}_USERNAME`];
             const staffPassword = process.env[`${account.prefix}_PASSWORD`];
 
-            if (username === staffUsername && password === staffPassword) {
+            if (username === staffUsername && secureCompare(password, staffPassword)) {
                 role = 'staff';
                 branch = process.env[`${account.prefix}_BRANCH`] || account.branch;
                 break;

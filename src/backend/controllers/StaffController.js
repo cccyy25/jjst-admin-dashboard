@@ -7,7 +7,7 @@ import { Staff } from '../Models';
 export class StaffController {
     async getAll() {
         await connectDB();
-        const staffList = await Staff.find({}).sort({ createdAt: -1 });
+        const staffList = await Staff.find({}).sort({name: 1 });
         return { staffList };
     }
 

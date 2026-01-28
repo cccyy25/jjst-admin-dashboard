@@ -47,6 +47,7 @@ const CloseIcon = () => (
 export default function StaffContent() {
     const [staffList, setStaffList] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [creating, setCreating] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [editingStaff, setEditingStaff] = useState(null);
     const [formData, setFormData] = useState({ name: "", isActive: true });
@@ -91,6 +92,7 @@ export default function StaffContent() {
     };
 
     const handleSubmit = async (e) => {
+        setCreating(true);
         e.preventDefault();
         if (editingStaff) {
             await updateStaff(editingStaff._id, formData);
@@ -98,6 +100,7 @@ export default function StaffContent() {
             await createStaff(formData);
         }
         setShowModal(false);
+        setCreating(false);
         fetchStaff();
     };
 
@@ -289,15 +292,17 @@ export default function StaffContent() {
 
             {/* Modal */}
             {showModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-50 overflow-y-auto">
                     {/* Backdrop */}
                     <div
-                        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                        className="fixed inset-0 bg-black/60 backdrop-blur-sm"
                         onClick={() => setShowModal(false)}
                     />
 
-                    {/* Modal Content */}
-                    <div className="relative w-full max-w-md bg-slate-800 border border-white/10 rounded-2xl shadow-2xl">
+                    {/* Modal Container */}
+                    <div className="min-h-full flex items-start sm:items-center justify-center p-4 py-8">
+                        {/* Modal Content */}
+                        <div className="relative w-full max-w-md bg-slate-800 border border-white/10 rounded-2xl shadow-2xl">
                         {/* Modal Header */}
                         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
                             <h2 className="text-xl font-bold text-white">
@@ -368,22 +373,25 @@ export default function StaffContent() {
                             </div>
 
                             {/* Modal Footer */}
-                            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/10 bg-white/5">
+                            <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-3 px-6 py-4 border-t border-white/10 bg-white/5">
                                 <button
                                     type="button"
+                                    disabled={creating}
                                     onClick={() => setShowModal(false)}
-                                    className="px-5 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+                                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
-                                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-medium hover:from-blue-600 hover:to-indigo-600 transition-all shadow-lg shadow-blue-500/25"
+                                    disabled={creating}
+                                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-medium hover:from-blue-600 hover:to-indigo-600 transition-all shadow-lg shadow-blue-500/25"
                                 >
                                     {editingStaff ? "Save Changes" : "Add Staff"}
                                 </button>
                             </div>
                         </form>
+                        </div>
                     </div>
                 </div>
             )}

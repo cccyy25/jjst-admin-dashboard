@@ -14,5 +14,5 @@ export default async function PuchongBranch() {
         redirect("/internalUse");
     }
 
-    return <BranchSalesPage branchSlug="puchong" branchName="Puchong Branch" />;
+    return <BranchSalesPage branchSlug="puchong" branchName="Puchong Branch" isAdmin={session.role === "superadmin"} />;
 }

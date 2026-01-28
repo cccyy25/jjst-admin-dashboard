@@ -23,6 +23,11 @@ export async function updateSales(id, data) {
     return { sales: JSON.parse(JSON.stringify(result.sales)) };
 }
 
+export async function deleteSales(id) {
+    const result = await salesController.delete(id);
+    return { success: result.success };
+}
+
 export async function getActiveStaff() {
     const result = await staffController.getAll();
     const activeStaff = result.staffList.filter(s => s.isActive);

@@ -14,5 +14,5 @@ export default async function SriPetalingBranch() {
         redirect("/internalUse");
     }
 
-    return <BranchSalesPage branchSlug="sri-petaling" branchName="Sri Petaling Branch" />;
+    return <BranchSalesPage branchSlug="sri-petaling" branchName="Sri Petaling Branch" isAdmin={session.role === "superadmin"} />;
 }

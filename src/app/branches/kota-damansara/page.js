@@ -14,5 +14,5 @@ export default async function KotaDamansaraBranch() {
         redirect("/internalUse");
     }
 
-    return <BranchSalesPage branchSlug="kota-damansara" branchName="Kota Damansara Branch" />;
+    return <BranchSalesPage branchSlug="kota-damansara" branchName="Kota Damansara Branch" isAdmin={session.role === "superadmin"} />;
 }

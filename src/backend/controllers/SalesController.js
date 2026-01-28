@@ -51,6 +51,12 @@ export class SalesController {
         return { sales };
     }
 
+    async delete(id) {
+        await connectDB();
+        const sales = await Sales.findByIdAndDelete(id);
+        return { success: !!sales };
+    }
+
     async getMonthlySalesByStaff(year, month, branch = null) {
         await connectDB();
 

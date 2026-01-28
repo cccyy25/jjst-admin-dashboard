@@ -14,5 +14,5 @@ export default async function CherasBranch() {
         redirect("/internalUse");
     }
 
-    return <BranchSalesPage branchSlug="cheras" branchName="Cheras Branch" />;
+    return <BranchSalesPage branchSlug="cheras" branchName="Cheras Branch" isAdmin={session.role === "superadmin"} />;
 }

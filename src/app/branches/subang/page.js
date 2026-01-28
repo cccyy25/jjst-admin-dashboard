@@ -14,5 +14,5 @@ export default async function SubangBranch() {
         redirect("/internalUse");
     }
 
-    return <BranchSalesPage branchSlug="subang" branchName="Subang Branch" />;
+    return <BranchSalesPage branchSlug="subang" branchName="Subang Branch" isAdmin={session.role === "superadmin"} />;
 }

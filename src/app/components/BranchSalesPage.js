@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { getSalesByBranch, createSales, updateSales, getActiveStaff, logout } from "@/backend/actions";
+import { getSalesByBranch, createSales, updateSales, deleteSales, getActiveStaff, logout } from "@/backend/actions";
 import Link from "next/link";
 import PageBackground from "@/app/utility/PageBackgroung";
 import LogoutIcon from "@/app/asset/icon/logoutIcon";
@@ -49,6 +49,24 @@ function getTodayUTC8() {
     return formatDateUTC8(new Date());
 }
 
+// Get current month date boundaries (UTC+8)
+function getCurrentMonthBounds() {
+    const now = new Date();
+    const utc8Now = new Date(now.getTime() + (UTC_OFFSET_HOURS * 60 * 60 * 1000));
+    const year = utc8Now.getUTCFullYear();
+    const month = utc8Now.getUTCMonth();
+
+    // First day of current month
+    const firstDay = new Date(Date.UTC(year, month, 1));
+    // Last day of current month
+    const lastDay = new Date(Date.UTC(year, month + 1, 0));
+
+    return {
+        minDate: firstDay.toISOString().split('T')[0],
+        maxDate: lastDay.toISOString().split('T')[0],
+    };
+}
+
 // Icon components
 const PlusIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -80,16 +98,29 @@ const CloseIcon = () => (
     </svg>
 );
 
-export default function BranchSalesPage({ branchSlug, branchName }) {
+const TrashIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+    </svg>
+);
+
+export default function BranchSalesPage({ branchSlug, branchName, isAdmin = false }) {
     const [salesList, setSalesList] = useState([]);
     const [staffList, setStaffList] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [creating, setCreating] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [editingSales, setEditingSales] = useState(null);
     const [dateFilter, setDateFilter] = useState(getTodayUTC8());
     const [searchTerms, setSearchTerms] = useState({});
     const [loggingOut, setLoggingOut] = useState(false);
     const router = useRouter();
+
+    // Date restrictions for non-admin users (current month only)
+    const dateBounds = useMemo(() => {
+        if (isAdmin) return { minDate: null, maxDate: null };
+        return getCurrentMonthBounds();
+    }, [isAdmin]);
 
     const handleLogout = async () => {
         setLoggingOut(true);
@@ -206,7 +237,15 @@ export default function BranchSalesPage({ branchSlug, branchName }) {
         setShowModal(true);
     };
 
+    const handleDelete = async (sales) => {
+        if (confirm(`Are you sure you want to delete this sales record?\n\nType: ${sales.type}\nAmount: RM ${sales.salesAmount.toFixed(2)}\nResponsible: ${sales.responsiblePersons.map(p => p.name).join(', ')}`)) {
+            await deleteSales(sales._id);
+            fetchSales();
+        }
+    };
+
     const handleSubmit = async (e) => {
+        setCreating(true);
         e.preventDefault();
         // Parse surcharge: if it's a string like "Hair Cut-35", extract the number
         let surchargeValue = formData.surcharge;
@@ -226,6 +265,7 @@ export default function BranchSalesPage({ branchSlug, branchName }) {
             await createSales(dataToSubmit);
         }
         setShowModal(false);
+        setCreating(false);
         fetchSales();
     };
 
@@ -321,6 +361,8 @@ export default function BranchSalesPage({ branchSlug, branchName }) {
                                 type="date"
                                 value={dateFilter}
                                 onChange={(e) => setDateFilter(e.target.value)}
+                                min={dateBounds.minDate || undefined}
+                                max={dateBounds.maxDate || undefined}
                                 className="bg-transparent text-white border-none outline-none cursor-pointer"
                             />
                         </div>
@@ -330,6 +372,11 @@ export default function BranchSalesPage({ branchSlug, branchName }) {
                         >
                             Today
                         </button>
+                        {!isAdmin && (
+                            <span className="text-slate-500 text-sm">
+                                (Current month only)
+                            </span>
+                        )}
                     </div>
 
                     {/* Summary Cards */}
@@ -465,6 +512,13 @@ export default function BranchSalesPage({ branchSlug, branchName }) {
                                                         >
                                                             <EditIcon />
                                                         </button>
+                                                        <button
+                                                            onClick={() => handleDelete(sale)}
+                                                            className="p-2 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-lg transition-colors"
+                                                            title="Delete this sale"
+                                                        >
+                                                            <TrashIcon />
+                                                        </button>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -488,8 +542,9 @@ export default function BranchSalesPage({ branchSlug, branchName }) {
 
             {/* Modal */}
             {showModal && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center overflow-y-auto py-8 z-50">
-                    <div className="bg-slate-800 border border-white/10 rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl">
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 overflow-y-auto">
+                    <div className="min-h-full flex items-start sm:items-center justify-center p-4 py-8">
+                        <div className="bg-slate-800 border border-white/10 rounded-2xl p-4 sm:p-6 w-full max-w-lg shadow-2xl">
                         {/* Modal Header */}
                         <div className="flex items-center justify-between mb-6">
                             <h2 className="text-xl font-bold text-white">
@@ -506,12 +561,17 @@ export default function BranchSalesPage({ branchSlug, branchName }) {
                         <form onSubmit={handleSubmit} className="space-y-5">
                             {/* 1. Date */}
                             <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-2">Date (UTC+8)</label>
+                                <label className="block text-sm font-medium text-slate-300 mb-2">
+                                    Date (UTC+8)
+                                    {!isAdmin && <span className="text-slate-500 text-xs ml-1 sm:ml-2">(Current month only)</span>}
+                                </label>
                                 <input
                                     type="date"
                                     value={formData.date}
                                     onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-blue-500 transition-colors"
+                                    min={dateBounds.minDate || undefined}
+                                    max={dateBounds.maxDate || undefined}
+                                    className="w-full px-3 sm:px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-blue-500 transition-colors"
                                     required
                                 />
                             </div>
@@ -522,7 +582,7 @@ export default function BranchSalesPage({ branchSlug, branchName }) {
                                 <select
                                     value={formData.type}
                                     onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-blue-500 transition-colors appearance-none cursor-pointer"
+                                    className="w-full px-3 sm:px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-blue-500 transition-colors appearance-none cursor-pointer"
                                     required
                                 >
                                     {SALES_TYPES.map(type => (
@@ -536,69 +596,71 @@ export default function BranchSalesPage({ branchSlug, branchName }) {
                                 <label className="block text-sm font-medium text-slate-300 mb-2">Responsible Persons</label>
                                 {formData.responsiblePersons.map((personId, index) => (
                                     <div key={index} className="mb-3">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-sm text-slate-500 w-20">
+                                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                            <span className="text-sm text-slate-500 sm:w-20 shrink-0">
                                                 Person {index + 1}
                                             </span>
-                                            <div className="flex-1 relative">
-                                                <input
-                                                    type="text"
-                                                    placeholder="Search staff..."
-                                                    value={searchTerms[index] ?? (personId ? getStaffName(personId) : '')}
-                                                    onChange={(e) => {
-                                                        setSearchTerms({ ...searchTerms, [index]: e.target.value });
-                                                        if (e.target.value === '') {
-                                                            updateResponsiblePerson(index, '');
-                                                        }
-                                                    }}
-                                                    onFocus={() => setSearchTerms({ ...searchTerms, [index]: searchTerms[index] || '' })}
-                                                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
-                                                />
-                                                {searchTerms[index] !== undefined && (
-                                                    <div className="absolute z-10 w-full mt-1 bg-slate-700 border border-white/10 rounded-lg shadow-xl max-h-40 overflow-y-auto">
-                                                        {getFilteredStaff(index).map(staff => (
-                                                            <div
-                                                                key={staff._id}
-                                                                onClick={() => {
-                                                                    updateResponsiblePerson(index, staff._id);
-                                                                    setSearchTerms({ ...searchTerms, [index]: undefined });
-                                                                }}
-                                                                className="px-4 py-2 hover:bg-white/10 cursor-pointer text-white"
-                                                            >
-                                                                {staff.name}
-                                                            </div>
-                                                        ))}
-                                                        {getFilteredStaff(index).length === 0 && (
-                                                            <div className="px-4 py-2 text-slate-400">No staff found</div>
-                                                        )}
-                                                    </div>
+                                            <div className="flex items-center gap-2 flex-1">
+                                                <div className="flex-1 relative">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Search staff..."
+                                                        value={searchTerms[index] ?? (personId ? getStaffName(personId) : '')}
+                                                        onChange={(e) => {
+                                                            setSearchTerms({ ...searchTerms, [index]: e.target.value });
+                                                            if (e.target.value === '') {
+                                                                updateResponsiblePerson(index, '');
+                                                            }
+                                                        }}
+                                                        onFocus={() => setSearchTerms({ ...searchTerms, [index]: searchTerms[index] || '' })}
+                                                        className="w-full px-3 sm:px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                                                    />
+                                                    {searchTerms[index] !== undefined && (
+                                                        <div className="absolute z-10 w-full mt-1 bg-slate-700 border border-white/10 rounded-lg shadow-xl max-h-40 overflow-y-auto">
+                                                            {getFilteredStaff(index).map(staff => (
+                                                                <div
+                                                                    key={staff._id}
+                                                                    onClick={() => {
+                                                                        updateResponsiblePerson(index, staff._id);
+                                                                        setSearchTerms({ ...searchTerms, [index]: undefined });
+                                                                    }}
+                                                                    className="px-4 py-2 hover:bg-white/10 cursor-pointer text-white"
+                                                                >
+                                                                    {staff.name}
+                                                                </div>
+                                                            ))}
+                                                            {getFilteredStaff(index).length === 0 && (
+                                                                <div className="px-4 py-2 text-slate-400">No staff found</div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                {formData.responsiblePersons.length > 1 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeResponsiblePerson(index)}
+                                                        className="p-2 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-lg transition-colors shrink-0"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                                        </svg>
+                                                    </button>
                                                 )}
                                             </div>
-                                            {formData.responsiblePersons.length > 1 && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeResponsiblePerson(index)}
-                                                    className="p-2 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-lg transition-colors"
-                                                >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                                                    </svg>
-                                                </button>
-                                            )}
                                         </div>
                                     </div>
                                 ))}
                                 <button
                                     type="button"
                                     onClick={addResponsiblePerson}
-                                    className="mt-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg transition-colors text-sm"
+                                    className="mt-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg transition-colors text-sm w-full sm:w-auto"
                                 >
                                     + Add Responsible Person
                                 </button>
                             </div>
 
-                            {/* 4. Sales Amount + Payment Method (same row) */}
-                            <div className="grid grid-cols-2 gap-4">
+                            {/* 4. Sales Amount + Payment Method (same row on desktop) */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-300 mb-2">Sales Amount</label>
                                     <input
@@ -606,7 +668,7 @@ export default function BranchSalesPage({ branchSlug, branchName }) {
                                         step="0.01"
                                         value={formData.salesAmount}
                                         onChange={(e) => setFormData({ ...formData, salesAmount: parseFloat(e.target.value) || 0 })}
-                                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-blue-500 transition-colors"
+                                        className="w-full px-3 sm:px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-blue-500 transition-colors"
                                         required
                                     />
                                 </div>
@@ -615,7 +677,7 @@ export default function BranchSalesPage({ branchSlug, branchName }) {
                                     <select
                                         value={formData.paymentMethod}
                                         onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
-                                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-blue-500 transition-colors appearance-none cursor-pointer"
+                                        className="w-full px-3 sm:px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-blue-500 transition-colors appearance-none cursor-pointer"
                                         required
                                     >
                                         {PAYMENT_METHODS.map(method => (
@@ -625,15 +687,15 @@ export default function BranchSalesPage({ branchSlug, branchName }) {
                                 </div>
                             </div>
 
-                            {/* 5. Deposit Code + Deposit Amount (same row) */}
-                            <div className="grid grid-cols-2 gap-4">
+                            {/* 5. Deposit Code + Deposit Amount (same row on desktop) */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-300 mb-2">Deposit Code</label>
                                     <input
                                         type="text"
                                         value={formData.depositCode}
                                         onChange={(e) => setFormData({ ...formData, depositCode: e.target.value })}
-                                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                                        className="w-full px-3 sm:px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
                                         placeholder="Optional"
                                     />
                                 </div>
@@ -644,7 +706,7 @@ export default function BranchSalesPage({ branchSlug, branchName }) {
                                         step="0.01"
                                         value={formData.depositAmount}
                                         onChange={(e) => setFormData({ ...formData, depositAmount: parseFloat(e.target.value) || 0 })}
-                                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-blue-500 transition-colors"
+                                        className="w-full px-3 sm:px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-blue-500 transition-colors"
                                     />
                                 </div>
                             </div>
@@ -694,7 +756,7 @@ export default function BranchSalesPage({ branchSlug, branchName }) {
                                 <textarea
                                     value={formData.remarks}
                                     onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors resize-none"
+                                    className="w-full px-3 sm:px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors resize-none"
                                     rows="2"
                                     placeholder="Optional remarks..."
                                 />
@@ -711,9 +773,10 @@ export default function BranchSalesPage({ branchSlug, branchName }) {
                             )}
 
                             {/* Actions */}
-                            <div className="flex justify-end gap-3 pt-2">
+                            <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-2">
                                 <button
                                     type="button"
+                                    disabled={creating}
                                     onClick={() => setShowModal(false)}
                                     className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-colors"
                                 >
@@ -721,12 +784,14 @@ export default function BranchSalesPage({ branchSlug, branchName }) {
                                 </button>
                                 <button
                                     type="submit"
+                                    disabled={creating}
                                     className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-xl transition-all shadow-lg shadow-blue-500/25"
                                 >
                                     {editingSales ? "Update" : "Create"}
                                 </button>
                             </div>
                         </form>
+                        </div>
                     </div>
                 </div>
             )}

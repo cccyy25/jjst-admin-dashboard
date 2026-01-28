@@ -14,5 +14,5 @@ export default async function BukitIndahBranch() {
         redirect("/internalUse");
     }
 
-    return <BranchSalesPage branchSlug="bukit-indah" branchName="Bukit Indah Branch" />;
+    return <BranchSalesPage branchSlug="bukit-indah" branchName="Bukit Indah Branch" isAdmin={session.role === "superadmin"} />;
 }
